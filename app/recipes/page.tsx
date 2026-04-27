@@ -16,10 +16,16 @@ export default function RecipesPage() {
   const [search, setSearch] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const [pantryItems, setPantryItems] = useState<string[]>([]);
+
   const loadRecipes = async () => {
     setLoading(true);
-    const { data } = await supabase.from('recipes').select('*').order('name');
-    setRecipes((data as Recipe[]) ?? []);
+    const [{ data: recipeData }, { data: pantryData }] = await Promise.all([
+      supabase.from('recipes').select('*').order('name'),
+      supabase.from('pantry_items').select('name').order('name'),
+    ]);
+    setRecipes((recipeData as Recipe[]) ?? []);
+    setPantryItems((pantryData ?? []).map((p: { name: string }) => p.name));
     setLoading(false);
   };
 
@@ -70,6 +76,7 @@ export default function RecipesPage() {
             <h2 className="font-semibold text-gray-900 mb-4">{editingRecipe ? 'Edit recipe' : 'New recipe'}</h2>
             <RecipeForm
               recipe={editingRecipe ?? undefined}
+              pantryItems={pantryItems}
               onSave={handleSave}
               onCancel={() => { setShowForm(false); setEditingRecipe(null); }}
             />

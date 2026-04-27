@@ -1,23 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Recipe, Ingredient } from '@/lib/types';
 
 type Props = {
   recipe?: Recipe;
+  pantryItems?: string[];
   onSave: (data: { name: string; description: string; ingredients: Ingredient[] }) => Promise<void>;
   onCancel: () => void;
 };
 
 const emptyIngredient = (): Ingredient => ({ name: '', quantity: '', unit: '' });
 
-export default function RecipeForm({ recipe, onSave, onCancel }: Props) {
+export default function RecipeForm({ recipe, pantryItems = [], onSave, onCancel }: Props) {
   const [name, setName] = useState(recipe?.name ?? '');
   const [description, setDescription] = useState(recipe?.description ?? '');
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     recipe?.ingredients?.length ? recipe.ingredients : [emptyIngredient()]
   );
   const [saving, setSaving] = useState(false);
+  const [focusedIngredientIndex, setFocusedIngredientIndex] = useState<number | null>(null);
+  const suppressBlur = useRef(false);
 
   const updateIngredient = (index: number, field: keyof Ingredient, value: string) => {
     setIngredients((prev) => prev.map((ing, i) => i === index ? { ...ing, [field]: value } : ing));
@@ -81,15 +84,41 @@ export default function RecipeForm({ recipe, onSave, onCancel }: Props) {
           </button>
         </div>
         <div className="flex flex-col gap-2">
-          {ingredients.map((ing, index) => (
+          {ingredients.map((ing, index) => {
+            const suggestions = ing.name.trim().length > 0
+              ? pantryItems.filter((p) => p.toLowerCase().includes(ing.name.toLowerCase()) && p.toLowerCase() !== ing.name.toLowerCase())
+              : [];
+            return (
             <div key={index} className="flex gap-2 items-center">
-              <input
-                type="text"
-                value={ing.name}
-                onChange={(e) => updateIngredient(index, 'name', e.target.value)}
-                placeholder="Ingredient"
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-              />
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={ing.name}
+                  onChange={(e) => updateIngredient(index, 'name', e.target.value)}
+                  onFocus={() => setFocusedIngredientIndex(index)}
+                  onBlur={() => { if (!suppressBlur.current) setFocusedIngredientIndex(null); }}
+                  placeholder="Ingredient"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+                {focusedIngredientIndex === index && suggestions.length > 0 && (
+                  <ul className="absolute z-10 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-md max-h-40 overflow-y-auto">
+                    {suggestions.map((s) => (
+                      <li
+                        key={s}
+                        onMouseDown={() => { suppressBlur.current = true; }}
+                        onMouseUp={() => {
+                          updateIngredient(index, 'name', s);
+                          setFocusedIngredientIndex(null);
+                          suppressBlur.current = false;
+                        }}
+                        className="px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 cursor-pointer"
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <input
                 type="text"
                 value={ing.quantity}
@@ -112,7 +141,8 @@ export default function RecipeForm({ recipe, onSave, onCancel }: Props) {
                 ×
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
