@@ -40,6 +40,22 @@ export default function ShoppingPage() {
   const weekStartStr = formatDate(weekStart);
   const weekEndStr = formatDate(addDays(weekStart, 6));
 
+  const storageKey = `shopping-${weekStartStr}`;
+
+  const loadFromStorage = (key: string) => {
+    try { return JSON.parse(localStorage.getItem(key) ?? 'null'); } catch { return null; }
+  };
+
+  const saveCheckedOverrides = (overrides: Record<string, boolean>) => {
+    const stored = loadFromStorage(storageKey) ?? {};
+    localStorage.setItem(storageKey, JSON.stringify({ ...stored, checkedOverrides: overrides }));
+  };
+
+  const saveCustomItems = (items: ShoppingIngredient[]) => {
+    const stored = loadFromStorage(storageKey) ?? {};
+    localStorage.setItem(storageKey, JSON.stringify({ ...stored, customItems: items }));
+  };
+
   const buildList = useCallback(async () => {
     setLoading(true);
 
@@ -76,39 +92,63 @@ export default function ShoppingPage() {
       }
     }
 
-    setIngredients(Array.from(ingredientMap.values()).sort((a, b) => {
+    const stored = loadFromStorage(`shopping-${weekStartStr}`);
+    const overrides: Record<string, boolean> = stored?.checkedOverrides ?? {};
+
+    const list = Array.from(ingredientMap.values()).map((ing) => {
+      const key = normalizeIngredientName(ing.name);
+      return key in overrides ? { ...ing, checked: overrides[key] } : ing;
+    });
+
+    setIngredients(list.sort((a, b) => {
       if (a.checked !== b.checked) return a.checked ? 1 : -1;
       return a.name.localeCompare(b.name);
     }));
+    setCustomItems(stored?.customItems ?? []);
     setLoading(false);
   }, [weekStartStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { buildList(); }, [buildList]);
 
   const toggleIngredient = (name: string) => {
-    setIngredients((prev) =>
-      prev.map((ing) =>
+    setIngredients((prev) => {
+      const updated = prev.map((ing) =>
         normalizeIngredientName(ing.name) === normalizeIngredientName(name)
           ? { ...ing, checked: !ing.checked }
           : ing
-      )
-    );
+      );
+      const overrides = Object.fromEntries(updated.map((i) => [normalizeIngredientName(i.name), i.checked]));
+      saveCheckedOverrides(overrides);
+      return updated;
+    });
   };
 
   const addCustomItem = (e: React.FormEvent) => {
     e.preventDefault();
     const name = newCustom.trim();
     if (!name) return;
-    setCustomItems((prev) => [...prev, { name, quantity: '', unit: '', fromMeals: [], checked: false }]);
+    setCustomItems((prev) => {
+      const updated = [...prev, { name, quantity: '', unit: '', fromMeals: [], checked: false }];
+      saveCustomItems(updated);
+      return updated;
+    });
     setNewCustom('');
   };
 
   const toggleCustom = (index: number) => {
-    setCustomItems((prev) => prev.map((item, i) => i === index ? { ...item, checked: !item.checked } : item));
+    setCustomItems((prev) => {
+      const updated = prev.map((item, i) => i === index ? { ...item, checked: !item.checked } : item);
+      saveCustomItems(updated);
+      return updated;
+    });
   };
 
   const removeCustom = (index: number) => {
-    setCustomItems((prev) => prev.filter((_, i) => i !== index));
+    setCustomItems((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      saveCustomItems(updated);
+      return updated;
+    });
   };
 
   const uncheckedCount = ingredients.filter((i) => !i.checked).length + customItems.filter((i) => !i.checked).length;
@@ -256,9 +296,6 @@ export default function ShoppingPage() {
               </div>
             </div>
 
-            <p className="text-xs text-gray-400 text-center mt-4">
-              This list resets when you reload — copy it to your notes before shopping!
-            </p>
           </>
         )}
       </main>
