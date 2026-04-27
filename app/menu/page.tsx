@@ -47,12 +47,14 @@ export default function MenuPage() {
   const [pantryItems, setPantryItems] = useState<string[]>([]);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const weekStartStr = formatDate(weekStart);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [menuRes, recipesRes, pantryRes] = await Promise.all([
+    const [userRes, menuRes, recipesRes, pantryRes] = await Promise.all([
+      supabase.auth.getUser(),
       supabase
         .from('weekly_menu')
         .select('*, recipe:recipes(*)')
@@ -60,6 +62,7 @@ export default function MenuPage() {
       supabase.from('recipes').select('*').order('name'),
       supabase.from('pantry_items').select('name'),
     ]);
+    setUserId(userRes.data.user?.id ?? null);
     setMenuItems((menuRes.data as WeeklyMenuItem[]) ?? []);
     setRecipes((recipesRes.data as Recipe[]) ?? []);
     setPantryItems((pantryRes.data ?? []).map((p: { name: string }) => p.name));
@@ -88,6 +91,7 @@ export default function MenuPage() {
         meal_slot: slot,
         recipe_id: recipeId,
         custom_meal: customMeal,
+        user_id: userId,
       });
     }
     await loadData();

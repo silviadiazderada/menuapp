@@ -11,11 +11,16 @@ export default function PantryPage() {
   const [loading, setLoading] = useState(true);
   const [newItem, setNewItem] = useState('');
   const [adding, setAdding] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from('pantry_items').select('*').order('name');
+    const [{ data: userData }, { data }] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.from('pantry_items').select('*').order('name'),
+    ]);
+    setUserId(userData.user?.id ?? null);
     setItems((data as PantryItem[]) ?? []);
     setLoading(false);
   };
@@ -27,7 +32,7 @@ export default function PantryPage() {
     const name = newItem.trim();
     if (!name) return;
     setAdding(true);
-    const { data } = await supabase.from('pantry_items').insert({ name }).select().single();
+    const { data } = await supabase.from('pantry_items').insert({ name, user_id: userId }).select().single();
     if (data) {
       setItems((prev) => [...prev, data as PantryItem].sort((a, b) => a.name.localeCompare(b.name)));
     }

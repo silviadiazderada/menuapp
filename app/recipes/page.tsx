@@ -17,13 +17,16 @@ export default function RecipesPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const [pantryItems, setPantryItems] = useState<string[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const loadRecipes = async () => {
     setLoading(true);
-    const [{ data: recipeData }, { data: pantryData }] = await Promise.all([
+    const [{ data: userData }, { data: recipeData }, { data: pantryData }] = await Promise.all([
+      supabase.auth.getUser(),
       supabase.from('recipes').select('*').order('name'),
       supabase.from('pantry_items').select('name').order('name'),
     ]);
+    setUserId(userData.user?.id ?? null);
     setRecipes((recipeData as Recipe[]) ?? []);
     setPantryItems((pantryData ?? []).map((p: { name: string }) => p.name));
     setLoading(false);
@@ -35,7 +38,7 @@ export default function RecipesPage() {
     if (editingRecipe) {
       await supabase.from('recipes').update(data).eq('id', editingRecipe.id);
     } else {
-      await supabase.from('recipes').insert(data);
+      await supabase.from('recipes').insert({ ...data, user_id: userId });
     }
     setShowForm(false);
     setEditingRecipe(null);
